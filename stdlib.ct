@@ -1,0 +1,11 @@
+import stdlib/Maybe
+
+import stdlib/List
+
+def do(monad)(f):
+  // bind
+  monad.map(f).flat
+
+def sequence(f)(g)(monad):
+  // Kleisli composition
+  f(monad).map(g).flat

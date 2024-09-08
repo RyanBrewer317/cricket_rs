@@ -1,0 +1,23 @@
+// idk if I'll keep this file, I just want to remember this:
+// monoid syntax should use Concat and Just and Empty
+// instead of Has and Empty
+// (`list` could offer Concat(l)(r) as a function instead of a constructor, which just converts to a bunch of Has)
+// and I should consider a unital binary-tree-like datastructure (a free monoid)
+// for constant-time push and concatenation and linear-time read.
+// perhaps instead of list, perhaps in addition to it.
+// A Concat constructor enables the bifunctor fun, like
+// bimap(f)(g)(m) = m.case{Concat: l-> r-> Concat(f(l), g(r))}
+// that doesn't realy guarantee they get the right arguments though ):
+
+// Maybe a pull-based/iterator approach is better here?
+// First function uses what it needs and returns the iterator for the next one to use
+// Actually I think this is a great idea! I'll explore it in code
+// A special iterator with back-passing `get` and a `return` wrapper
+// with a special failure constructor for getting too many values from the iterator
+// This means a real bimap is possible
+
+// the + operator could do Concat(left, right), for easy overloading
+// but I'm not sure how to specify which monoid to use
+// Maybe, always use addition for integers and floats,
+// and concatenation for strings
+// and then use left.Concat for objects

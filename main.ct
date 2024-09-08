@@ -1,0 +1,132 @@
+def infinite_recursion:
+  infinite_recursion
+
+def omega:
+  (x -> x(x))(x -> x(x)) 
+
+def infinitely_recursive_object:
+  // this is actually the same as `infinite_recursion` above:
+  // a module is an object and there's an implicit "this" parameter for functions
+  // and calling a function `foo` is, implicitly, 
+  // `this.foo` for whatever the module is.
+  // So `infinite_recursion` is `mod.infinite_recursion: mod.infinite_recursion` 
+  // and called as `mod.infinite_recursion`.
+  // This object here is a tiny recreation of this phenomenon:
+  {this.x: this.x}.x 
+  // you could also do `{this.x: this.x, this.foo: this.x}.foo`
+  // to look more like a module
+
+def laziness_example_1:
+  // print 1, then 2
+  (_ -> 
+    let force _ = console.write(1)
+    in console.write(2)
+  )(infinite_recursion)
+
+def laziness_example_2:
+  // print b
+  let _ = console.write("a")
+  in console.write("b")
+
+def laziness_example_3:
+  // print 1, then 2
+  let force _ = console.write(1)
+  in console.write(2)
+
+def laziness_example_4:
+  // demonstrating how laziness causes problems
+  // this function echoes twice, 
+  // instead of two prompts and then printing in reverse
+  let x = console.read
+  in let y = console.read
+  in let force _ = console.write(y)
+  in console.write(x)
+
+def laziness_example_5:
+  // here's how to correctly
+  // prompt twice and then print in reverse:
+  let force x = console.read
+  in let force y = console.read
+  in let force _ = console.write(y)
+  in console.write(x)
+
+import stdlib/List
+
+def object_example_1:
+  // a bunch of fun object trickery!
+  let l = List[-0.5, -0.6, -0.2] // monoid syntax
+  // print out all the elements
+  in l.case{
+    Empty: 0,
+    this.Has(first)(rest):
+      let force _ = console.write(first)
+      in rest.case(this) // apply this same pattern match to the tail!
+  }
+
+def object_example_2:
+  let stream_of_ones = {this.val: List.Has("hi!")(this.val)}.val
+  in stream_of_ones.case{
+    Has(first)(rest): rest.case{
+      Has(second)(_):
+        let force _ = console.write(first)
+        in console.write(second)
+    }
+  }
+
+def object_example_3:
+  let dog = {bark: "woof!"}
+  in let cooper = dog <- name: "Cooper"
+  in console.write(cooper.name + " says: " + cooper.bark)
+
+def object_example_4:
+  let Iter = List.Iter
+  in let my_list = List[7, 4, 5]
+  in let fourth(it) = it.next.next.next.val
+  // print "null"
+  in let force _ = (fourth' Iter' my_list).case{
+    Some(x): console.write(x), // we could exclude this branch
+    None: console.write("empty")
+  }
+  // print 5
+  in (fourth' Iter' List.Has(2)' my_list).case{
+    Some(x): console.write(x),
+    None: console.write("empty") // we could exclude this branch
+  }
+
+def backpassing_example_1:
+  // use the `let <-` notation ("backpassing") to print 1
+  let x <- f-> f("Cricket is cool!")
+  in console.write(x)
+
+import stdlib
+
+def backpassing_example_2:
+  // use backpassing for some monadic fun
+  let do = stdlib.do
+  in let Maybe = stdlib.Maybe
+  in let return = Maybe.Some
+  in let x <- do' Maybe.Some(7)
+  // prints 7
+  in let force _ = console.write(x)
+  in let y <- do' Maybe.None
+  // this code path is unreachable
+  // so it doesn't print
+  in let force _ = console.write(y)
+  in return(0)
+
+def main:
+  let force _ = laziness_example_1 // print 1 then 2
+  in let force _ = laziness_example_2 // print "b"
+  in let force _ = laziness_example_3 // print 1 then 2
+  // I commented these out because entering input is annoying:
+  // in let force _ = laziness_example_4
+  // in let force _ = laziness_example_5
+  in let force _ = object_example_1 // print -0.5 then -0.6 then -0.2
+  in let force _ = object_example_2 // print "hi!" twice
+  in let force _ = object_example_3 // print "Cooper says: woof!"
+  in let force _ = object_example_4 // print "empty" then 5
+  in let force _ = backpassing_example_1 // print "Cricket is cool!"
+  in let force _ = backpassing_example_2 // print 7
+  in console.write("All examples finished!")
+
+

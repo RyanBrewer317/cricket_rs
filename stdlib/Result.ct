@@ -1,0 +1,19 @@
+def Ok(x): {
+  case(c): c.Ok(x),
+  map(f): Ok(f(x)),
+  flat: x,
+  err: {
+    this.map(_): this,
+    this.flat: this
+  }
+}
+
+def Err(err): {
+  case(c): c.Err(err),
+  this.map(_): this,
+  this.flat: this,
+  err: {
+    map(f): Err(f(err)),
+    flat: err
+  }
+}

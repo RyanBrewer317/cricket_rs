@@ -1,0 +1,41 @@
+def True: {
+  case: c-> c.True
+}
+
+def False: {
+  case: c-> False
+}
+
+def if(b)(args): 
+  b.case{
+	 True: args.then,
+   False: args.else
+  }
+
+def guard(args)(k):
+  if(args.cond) {
+    then: args.return,
+    else: k{}
+  }
+
+import Maybe
+
+// case statement with no pattern matching
+// useful for strings and integers, which have no `case` method.
+def switch(scrutinee): {
+  Has(case)(rest):
+    if(case.case == scrutinee) {
+      then: Maybe.Some(case.then),
+      else: switch(rest)
+    }
+  Empty: Maybe.None
+}
+
+def switch_example(n):
+  switch(n)[
+    {case: 1, then: console.write("one")},
+    {case: 2, then: console.write("two")},
+    {case: 3, then: console.write("three")}
+  ].default(
+    console.write("not one, two, or three")
+  )

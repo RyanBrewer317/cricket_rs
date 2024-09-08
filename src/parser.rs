@@ -1,5 +1,5 @@
 use crate::common::*;
-use std::str::Chars;
+use std::{collections::HashMap, str::Chars};
 
 #[derive(Clone, Debug)]
 pub struct ParseData<'p> {
@@ -304,14 +304,14 @@ fn parse_let<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
     whitespace0(data)?;
     let (ident, let_type, params) = match pat.as_str() {
         "force" => {
-            let ident = commit(data, &ident_string)?;
+            let ident = commit(data, &pattern_string)?;
             let mb_params = possible(data, &parse_params)?;
             let params = mb_params.unwrap_or(vec![]);
             whitespace0(data)?;
             commit(data, &|d| the_char(d, '='))?;
             Ok((ident, LetType::Force, params))
         }
-        _ => {
+        n => {
             let mb_params = possible(data, &parse_params)?;
             match mb_params {
                 Some(params) => {
@@ -334,9 +334,8 @@ fn parse_let<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
     commit(data, &|d| exact(d, "in"))?;
     commit(data, &whitespace)?;
     let scope = commit(data, &parse_term)?;
-    // I hope the optimizer knows it can take ownership of each string, instead of cloning them all just to free them at the end
-    let val2 = params.iter().fold(val, |acc, p| {
-        Syntax::Lambda(pos.clone(), p.to_owned(), Box::new(acc))
+    let val2 = params.into_iter().fold(val, |acc, p| {
+        Syntax::Lambda(pos.clone(), p, Box::new(acc))
     });
     match let_type {
         LetType::Force => Ok(Syntax::LetForce(
@@ -377,8 +376,8 @@ fn parse_methods<'p>(data: &mut ParseData<'p>) -> ParseResult<Vec<(String, Strin
         let def = commit(d, &parse_term)?;
         whitespace0(d)?;
         let def2 = match mb_params {
-            Some(params) => params.iter().fold(def, |acc, p| {
-                Syntax::Lambda(def_pos.clone(), p.to_owned(), Box::new(acc))
+            Some(params) => params.into_iter().fold(def, |acc, p| {
+                Syntax::Lambda(def_pos.clone(), p, Box::new(acc))
             }),
             None => def,
         };
@@ -506,20 +505,20 @@ pub fn parse_term<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
     })?;
     let out = match args.as_slice() {
         [] => t,
-        _ => args.iter().fold(t, |acc, a| match a {
-            Postfix::Call(pos, arg) => Syntax::Call(pos.clone(), Box::new(acc), Box::new(arg.clone())),
-            Postfix::Access(pos, ident) => Syntax::Access(pos.clone(), Box::new(acc), ident.to_string()),
+        _ => args.into_iter().fold(t, |acc, a| match a {
+            Postfix::Call(pos, arg) => Syntax::Call(pos, Box::new(acc), Box::new(arg)),
+            Postfix::Access(pos, ident) => Syntax::Access(pos, Box::new(acc), ident),
             Postfix::Update(pos, this, method, body) => Syntax::Update(
-                pos.clone(),
+                pos,
                 Box::new(acc),
-                this.to_string(),
-                method.to_string(),
-                Box::new(body.clone()),
+                this,
+                method,
+                Box::new(body),
             ),
             Postfix::Operator(pos, op, rhs) => {
-                Syntax::Operator(pos.clone(), op.to_string(), Box::new(acc), Box::new(rhs.clone()))
+                Syntax::Operator(pos, op, Box::new(acc), Box::new(rhs))
             }
-            Postfix::Monoid(pos, terms) => terms.iter().fold(
+            Postfix::Monoid(pos, terms) => terms.into_iter().fold(
                 Syntax::Access(acc.pos().clone(), Box::new(acc.clone()), "Empty".to_string()),
                 |so_far, term| {
                     Syntax::Call(
@@ -533,7 +532,7 @@ pub fn parse_term<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
                                 ),
                                 "Has".to_string(),
                             )),
-                            Box::new(term.clone()),
+                            Box::new(term),
                         )),
                         Box::new(so_far),
                     )
@@ -557,4 +556,79 @@ fn parse_params<'p>(data: &mut ParseData<'p>) -> ParseResult<Vec<String>> {
         commit(d, &|d2| the_char(d2, ')'))?;
         Ok(param)
     })
+}
+
+enum Declaration {
+    Def(String, Syntax),
+    Import(Vec<String>),
+    Param(String),
+}
+
+fn partition(decls: Vec<Declaration>) -> (Vec<(String, Syntax)>, Vec<Vec<String>>, Vec<String>) {
+    let mut defs = vec![];
+    let mut imports = vec![];
+    let mut params = vec![];
+    for decl in decls {
+        match decl {
+            Declaration::Def(name, def) => defs.push((name, def)),
+            Declaration::Import(path) => imports.push(path),
+            Declaration::Param(name) => params.push(name),
+        }
+    }
+    (defs, imports, params)
+}
+
+fn parse_decl<'p>(data: &mut ParseData<'p>) -> ParseResult<Declaration> {
+    let pos = data.pos.clone();
+    exact(data, "def")?;
+    commit(data, &whitespace)?;
+    let name = commit(data, &ident_string)?;
+    let mb_not_func = possible(data, &|d| {
+        whitespace0(d)?;
+        the_char(d, ':')
+    })?;
+    match mb_not_func {
+        Some(_) => {
+            whitespace0(data)?;
+            let t = commit(data, &parse_term)?;
+            Ok(Declaration::Def(name.clone(), match t {
+                Syntax::Object(pos2, _, methods) => Syntax::Object(pos2, Some(name), methods),
+                _ => t
+            }))
+        }
+        None => {
+            let params = commit(data, &parse_params)?;
+            whitespace0(data)?;
+            commit(data, &|d| the_char(d, ':'))?;
+            let body = commit(data, &parse_term)?;
+            let body2 = params.into_iter().fold(body, |acc, param| Syntax::Lambda(pos.clone(), param, Box::new(acc)));
+            Ok(Declaration::Def(name, body2))
+        }
+    }
+}
+
+fn parse_import<'p>(data: &mut ParseData<'p>) -> ParseResult<Declaration> {
+    exact(data, "import")?;
+    commit(data, &whitespace)?;
+    let path = commit(data, &|d| sep_by(d, &|d2| the_char(d2, '/'), &ident_string))?;
+    whitespace0(data)?;
+    Ok(Declaration::Import(path))
+}
+
+fn parse_param<'p>(data: &mut ParseData<'p>) -> ParseResult<Declaration> {
+    exact(data, "param")?;
+    commit(data, &whitespace)?;
+    let name = commit(data, &ident_string)?;
+    whitespace0(data)?;
+    Ok(Declaration::Param(name))
+}
+
+pub fn parse_file<'p>(data: &mut ParseData<'p>) -> ParseResult<(HashMap<String, Syntax>, Vec<Vec<String>>, Vec<String>)> {
+    let res = many(data, &|d| {
+        whitespace0(d)?;
+        one_of(d, &[&parse_decl, &parse_import, &parse_param])
+    })?;
+    whitespace0(data)?;
+    let (defs, imports, params) = partition(res);
+    Ok((defs.into_iter().collect(), imports, params))
 }

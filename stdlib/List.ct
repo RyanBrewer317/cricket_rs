@@ -1,0 +1,33 @@
+def Empty: {
+  case(c): c.Empty,
+  map(f): Empty,
+  concat(l): l,
+  flat: Empty
+}
+
+def Has(first)(rest): {
+  case(c): c.Has(first)(rest),
+  map(f): Has(f(first))(rest.map(f)),
+  concat(l): Has(h)(rest.concat(l)),
+  flat: first.concat(rest.flat)
+}
+
+def Concat(left)(right):
+  left.concat(right)
+
+def Just(x):
+  Has(x)(Empty)
+
+import Maybe
+
+def Iter(l):
+  l.case{
+    Empty: {
+      val: Maybe.None,
+      next: Iter(l)
+    },
+    Has(first)(rest): {
+      val: Maybe.Some(first),
+      next: Iter(rest)
+    }
+  }

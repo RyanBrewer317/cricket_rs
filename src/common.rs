@@ -85,9 +85,9 @@ impl Pretty for Syntax {
             Syntax::Object(_, None, methods) => {
                 "{".to_owned()
                     + &methods
-                        .iter()
+                        .into_iter()
                         .map(|(this, method, def)| {
-                            this.to_owned() + "." + &method + ": " + &def.clone().pretty()
+                            this + "." + &method + ": " + &def.pretty()
                         })
                         .collect::<Vec<String>>()
                         .join(", ")
@@ -144,9 +144,9 @@ impl Pretty for Term {
             Term::Object(_, None, methods) => {
                 "{".to_owned()
                     + &methods
-                        .iter()
+                        .into_iter()
                         .map(|(method, (this, def))| {
-                            this.to_owned() + "." + &method + ": " + &def.clone().pretty()
+                            this + "." + &method + ": " + &def.pretty()
                         })
                         .collect::<Vec<String>>()
                         .join(", ")
