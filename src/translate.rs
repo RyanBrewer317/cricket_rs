@@ -2,7 +2,12 @@ use std::collections::HashMap;
 
 use crate::common::*;
 
-pub fn translate(mod_name: &String, index: i64, renames: &mut Vec<(String, i64)>, t: Syntax) -> Term {
+pub fn translate(
+    mod_name: &String,
+    index: i64,
+    renames: &mut Vec<(String, i64)>,
+    t: Syntax,
+) -> Term {
     match t {
         Syntax::Lambda(pos, param, body) => {
             renames.push((param.clone(), index));
@@ -10,18 +15,23 @@ pub fn translate(mod_name: &String, index: i64, renames: &mut Vec<(String, i64)>
             renames.pop();
             Term::Lambda(pos, param, Box::new(body2))
         }
-        Syntax::Ident(pos, name) => 
+        Syntax::Ident(pos, name) => {
             if name.starts_with('#') {
                 Term::Ident(pos, 0, name)
             } else {
-                match renames.iter().rev().find(|(k,_)| k == &name) {
+                match renames.iter().rev().find(|(k, _)| k == &name) {
                     Some((_, i)) => Term::Ident(pos, index - i - 1, name),
                     None => {
-                        let t2 = Syntax::Access(pos.clone(), Box::new(Syntax::Ident(pos, mod_name.clone())), name);
+                        let t2 = Syntax::Access(
+                            pos.clone(),
+                            Box::new(Syntax::Ident(pos, mod_name.clone())),
+                            name,
+                        );
                         translate(mod_name, index, renames, t2)
                     }
                 }
             }
+        }
         Syntax::Call(pos, foo, bar) => {
             let foo2 = translate(mod_name, index, renames, *foo);
             let bar2 = translate(mod_name, index, renames, *bar);
@@ -70,6 +80,6 @@ pub fn translate(mod_name: &String, index: i64, renames: &mut Vec<(String, i64)>
             Term::Operator(pos, op, Box::new(lhs2), Box::new(rhs2))
         }
         Syntax::String(pos, s) => Term::String(pos, s),
-        Syntax::Float(pos, f) => Term::Float(pos, f)
+        Syntax::Float(pos, f) => Term::Float(pos, f),
     }
 }

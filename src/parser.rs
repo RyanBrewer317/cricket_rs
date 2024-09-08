@@ -189,17 +189,14 @@ fn ident_string<'p>(data: &mut ParseData<'p>) -> ParseResult<String> {
 fn pattern_string<'p>(data: &mut ParseData<'p>) -> ParseResult<String> {
     one_of(
         data,
-        &[
-            &|d| ident_string(d), 
-            &|d| {
-                the_char(d, '_')?;
-                let mb_rest = possible(d, &ident_string)?;
-                match mb_rest {
-                    Some(rest) => Ok(format!("_{}", rest)),
-                    None => Ok("_".to_owned()),
-                }
+        &[&|d| ident_string(d), &|d| {
+            the_char(d, '_')?;
+            let mb_rest = possible(d, &ident_string)?;
+            match mb_rest {
+                Some(rest) => Ok(format!("_{}", rest)),
+                None => Ok("_".to_owned()),
             }
-        ],
+        }],
     )
 }
 
@@ -281,10 +278,7 @@ fn parse_string<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
     let pos = data.pos.clone();
     the_char(data, '"')?;
     let s = many0(data, &|d| {
-        one_of(d, &[
-            &escaped,
-            &|d2| satisfy(d2, &|c| c != '"')
-        ])
+        one_of(d, &[&escaped, &|d2| satisfy(d2, &|c| c != '"')])
     })?;
     commit(data, &|d| the_char(d, '"'))?;
     Ok(Syntax::String(pos, s.iter().collect::<String>()))
@@ -311,7 +305,7 @@ fn parse_let<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
             commit(data, &|d| the_char(d, '='))?;
             Ok((ident, LetType::Force, params))
         }
-        n => {
+        _ => {
             let mb_params = possible(data, &parse_params)?;
             match mb_params {
                 Some(params) => {
@@ -320,7 +314,9 @@ fn parse_let<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
                     Ok((pat, LetType::Basic, params))
                 }
                 None => {
-                    let op = commit(data, &|d| one_of(d, &[&|d2| exact(d2, "="), &|d2| exact(d2, "<-")]))?;
+                    let op = commit(data, &|d| {
+                        one_of(d, &[&|d2| exact(d2, "="), &|d2| exact(d2, "<-")])
+                    })?;
                     match op.as_str() {
                         "=" => Ok((pat, LetType::Basic, vec![])),
                         "<-" => Ok((pat, LetType::Back, vec![])),
@@ -334,9 +330,10 @@ fn parse_let<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
     commit(data, &|d| exact(d, "in"))?;
     commit(data, &whitespace)?;
     let scope = commit(data, &parse_term)?;
-    let val2 = params.into_iter().fold(val, |acc, p| {
-        Syntax::Lambda(pos.clone(), p, Box::new(acc))
-    });
+    let val2 = params
+        .into_iter()
+        .rev()
+        .fold(val, |acc, p| Syntax::Lambda(pos.clone(), p, Box::new(acc)));
     match let_type {
         LetType::Force => Ok(Syntax::LetForce(
             pos,
@@ -376,7 +373,7 @@ fn parse_methods<'p>(data: &mut ParseData<'p>) -> ParseResult<Vec<(String, Strin
         let def = commit(d, &parse_term)?;
         whitespace0(d)?;
         let def2 = match mb_params {
-            Some(params) => params.into_iter().fold(def, |acc, p| {
+            Some(params) => params.into_iter().rev().fold(def, |acc, p| {
                 Syntax::Lambda(def_pos.clone(), p, Box::new(acc))
             }),
             None => def,
@@ -508,18 +505,18 @@ pub fn parse_term<'p>(data: &mut ParseData<'p>) -> ParseResult<Syntax> {
         _ => args.into_iter().fold(t, |acc, a| match a {
             Postfix::Call(pos, arg) => Syntax::Call(pos, Box::new(acc), Box::new(arg)),
             Postfix::Access(pos, ident) => Syntax::Access(pos, Box::new(acc), ident),
-            Postfix::Update(pos, this, method, body) => Syntax::Update(
-                pos,
-                Box::new(acc),
-                this,
-                method,
-                Box::new(body),
-            ),
+            Postfix::Update(pos, this, method, body) => {
+                Syntax::Update(pos, Box::new(acc), this, method, Box::new(body))
+            }
             Postfix::Operator(pos, op, rhs) => {
                 Syntax::Operator(pos, op, Box::new(acc), Box::new(rhs))
             }
-            Postfix::Monoid(pos, terms) => terms.into_iter().fold(
-                Syntax::Access(acc.pos().clone(), Box::new(acc.clone()), "Empty".to_string()),
+            Postfix::Monoid(pos, terms) => terms.into_iter().rev().fold(
+                Syntax::Access(
+                    acc.pos().clone(),
+                    Box::new(acc.clone()),
+                    "Empty".to_string(),
+                ),
                 |so_far, term| {
                     Syntax::Call(
                         pos.clone(),
@@ -591,17 +588,22 @@ fn parse_decl<'p>(data: &mut ParseData<'p>) -> ParseResult<Declaration> {
         Some(_) => {
             whitespace0(data)?;
             let t = commit(data, &parse_term)?;
-            Ok(Declaration::Def(name.clone(), match t {
-                Syntax::Object(pos2, _, methods) => Syntax::Object(pos2, Some(name), methods),
-                _ => t
-            }))
+            Ok(Declaration::Def(
+                name.clone(),
+                match t {
+                    Syntax::Object(pos2, _, methods) => Syntax::Object(pos2, Some(name), methods),
+                    _ => t,
+                },
+            ))
         }
         None => {
             let params = commit(data, &parse_params)?;
             whitespace0(data)?;
             commit(data, &|d| the_char(d, ':'))?;
             let body = commit(data, &parse_term)?;
-            let body2 = params.into_iter().fold(body, |acc, param| Syntax::Lambda(pos.clone(), param, Box::new(acc)));
+            let body2 = params.into_iter().rev().fold(body, |acc, param| {
+                Syntax::Lambda(pos.clone(), param, Box::new(acc))
+            });
             Ok(Declaration::Def(name, body2))
         }
     }
@@ -623,7 +625,9 @@ fn parse_param<'p>(data: &mut ParseData<'p>) -> ParseResult<Declaration> {
     Ok(Declaration::Param(name))
 }
 
-pub fn parse_file<'p>(data: &mut ParseData<'p>) -> ParseResult<(HashMap<String, Syntax>, Vec<Vec<String>>, Vec<String>)> {
+pub fn parse_file<'p>(
+    data: &mut ParseData<'p>,
+) -> ParseResult<(HashMap<String, Syntax>, Vec<Vec<String>>, Vec<String>)> {
     let res = many(data, &|d| {
         whitespace0(d)?;
         one_of(d, &[&parse_decl, &parse_import, &parse_param])

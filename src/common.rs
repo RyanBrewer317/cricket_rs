@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pos {
@@ -11,6 +11,7 @@ pub struct Pos {
 pub enum Error {
     Parse(Pos, Option<String>, String),
     ParseRecoverable(Pos, Option<String>, String),
+    Runtime(Pos, String),
 }
 impl Pretty for Error {
     fn pretty(self: Self) -> String {
@@ -27,6 +28,12 @@ impl Pretty for Error {
             }
             Error::ParseRecoverable(pos, expected, msg) => {
                 Error::Parse(pos, expected, msg).pretty()
+            }
+            Error::Runtime(pos, msg) => {
+                format!(
+                    "Runtime error. {} at `{}:{}:{}`.",
+                    msg, pos.src_name, pos.line, pos.col
+                )
             }
         }
     }
@@ -86,9 +93,7 @@ impl Pretty for Syntax {
                 "{".to_owned()
                     + &methods
                         .into_iter()
-                        .map(|(this, method, def)| {
-                            this + "." + &method + ": " + &def.pretty()
-                        })
+                        .map(|(this, method, def)| this + "." + &method + ": " + &def.pretty())
                         .collect::<Vec<String>>()
                         .join(", ")
                     + "}"
@@ -134,7 +139,7 @@ impl Pretty for Term {
     fn pretty(self: Self) -> String {
         match self {
             Term::Lambda(_, ident, body) => ident + "-> " + &body.pretty(),
-            Term::Ident(_, _, ident) => ident,
+            Term::Ident(_, i, ident) => format!("{}{}", ident, i),
             Term::Call(_, foo, bar) => "(".to_owned() + &foo.pretty() + ")(" + &bar.pretty() + ")",
             Term::Int(_, i) => format!("{}", i),
             Term::LetForce(_, ident, val, scope) => {
@@ -145,9 +150,7 @@ impl Pretty for Term {
                 "{".to_owned()
                     + &methods
                         .into_iter()
-                        .map(|(method, (this, def))| {
-                            this + "." + &method + ": " + &def.pretty()
-                        })
+                        .map(|(method, (this, def))| this + "." + &method + ": " + &def.pretty())
                         .collect::<Vec<String>>()
                         .join(", ")
                     + "}"
@@ -173,4 +176,21 @@ impl Pretty for Term {
 }
 
 #[derive(Clone, Debug)]
-pub struct Env(Vec<(Term, Env)>);
+pub struct Env(pub Rc<List<(Term, Env)>>);
+
+#[derive(Clone, Debug)]
+pub struct Stack(pub Rc<List<(Term, Env)>>);
+
+#[derive(Clone, Debug)]
+pub enum List<T> {
+    Nil,
+    Cons(T, Rc<List<T>>),
+}
+impl<T> List<T> {
+    pub fn cons(self: &Self) -> Option<(&T, &Rc<List<T>>)> {
+        match self {
+            List::Nil => None,
+            List::Cons(x, xs) => Some((x, xs)),
+        }
+    }
+}
