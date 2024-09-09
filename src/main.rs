@@ -8,11 +8,13 @@ use std::{
 
 use common::*;
 mod parser;
-use eval::normalize;
 use parser::*;
 mod translate;
 use translate::*;
 mod eval;
+use eval::*;
+mod analyze;
+use analyze::*;
 
 fn process_import(mod_path_segments: &Vec<String>) -> Result<(String, String, Syntax), Error> {
     let mut mod_path_segments_copy = mod_path_segments.clone();
@@ -125,6 +127,15 @@ fn go() -> Result<Term, Error> {
             let ob = Syntax::Module(pos.clone(), "input".to_string(), mod_methods);
             let t2 = translate(&"input".to_string(), 0, &mut vec![], ob);
             let entry = Term::Access(pos, Box::new(t2), "main".to_owned());
+            let mut warnings = vec![];
+            infer(&entry, &mut vec![], &mut vec![], &mut warnings, 0, &mut vec![]);
+            for Warning(pos, msg) in &warnings {
+                println!("Warning: {} at `{}:{}:{}`.", msg, pos.src_name, pos.line, pos.col);
+            }
+            if !warnings.is_empty() {
+                println!("Hit `Enter` or `Return` to continue...");
+                io::stdin().read_line(&mut String::new()).unwrap();
+            }
             return normalize(entry);
         }
         Some(filename) => {
@@ -137,6 +148,15 @@ fn go() -> Result<Term, Error> {
             let (_, _, t) = process_import(&vec![mod_name.clone()])?;
             let t2 = translate(&mod_name, 0, &mut vec![], t);
             let entry = Term::Access(pos, Box::new(t2), "main".to_owned());
+            let mut warnings = vec![];
+            infer(&entry, &mut vec![], &mut vec![], &mut warnings, 0, &mut vec![]);
+            for Warning(pos, msg) in &warnings {
+                println!("Warning: {} at `{}:{}:{}`.", msg, pos.src_name, pos.line, pos.col);
+            }
+            if !warnings.is_empty() {
+                println!("Hit `Enter` or `Return` to continue, or `Ctrl-C` to exit...");
+                io::stdin().read_line(&mut String::new()).unwrap();
+            }
             return normalize(entry);
         }
     }

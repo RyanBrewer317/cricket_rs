@@ -25,7 +25,8 @@ def laziness_example_1:
 
 def laziness_example_2:
   // print b
-  let _ = console.write("a")
+  let x = 9 in
+  let _ = console.write("a" + x)
   in console.write("b")
 
 def laziness_example_3:

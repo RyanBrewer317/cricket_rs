@@ -8,7 +8,7 @@ def Empty: {
 def Has(first)(rest): {
   case(c): c.Has(first)(rest),
   map(f): Has(f(first))(rest.map(f)),
-  concat(l): Has(h)(rest.concat(l)),
+  concat(l): Has(first)(rest.concat(rest)),
   flat: first.concat(rest.flat)
 }
 
