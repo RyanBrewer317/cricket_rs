@@ -131,7 +131,7 @@ pub fn infer(
             scope
         }
         Term::Object(_p, _mb_name, methods) => {
-            let mut methods2 = Vec::new();
+            let mut methods2 = vec![];
             env.push(Type::Object(
                 methods
                     .iter()
@@ -140,13 +140,26 @@ pub fn infer(
             ));
             parent_objects.push(term.clone());
             for (name, (this, def)) in methods {
-                let def2 = infer(def, env, psi, warnings, i + 1, parent_objects);
+                let def2 = infer(def, env, psi, &mut vec![], i + 1, parent_objects);
                 methods2.push((name.to_string(), this.to_string(), def2));
             }
-            parent_objects.pop();
             env.pop();
-            Type::Object(
+            let this_type = Type::Object(
                 methods2
+                    .into_iter()
+                    .map(|(name, _, t)| (i, name, t))
+                    .collect(),
+            );
+            let mut methods3 = vec![];
+            env.push(this_type);
+            for (name, (this, def)) in methods {
+                let def2 = infer(def, env, psi, warnings, i, parent_objects);
+                methods3.push((name.to_string(), this.to_string(), def2));
+            }
+            env.pop();
+            parent_objects.pop();
+            Type::Object(
+                methods3
                     .into_iter()
                     .map(|(name, _, t)| (i, name, t))
                     .collect(),
@@ -278,7 +291,13 @@ pub fn infer(
     }
 }
 
-fn check(term: &Term, against: &Type, env: &mut Vec<Type>, psi: &mut Vec<Type>, warnings: &mut Vec<Warning>) -> () {
+fn check(
+    term: &Term,
+    against: &Type,
+    env: &mut Vec<Type>,
+    psi: &mut Vec<Type>,
+    warnings: &mut Vec<Warning>,
+) -> () {
     match term {
         Term::Lambda(_, _, body) => {
             if let Type::Function(a, b) = against {
@@ -288,13 +307,17 @@ fn check(term: &Term, against: &Type, env: &mut Vec<Type>, psi: &mut Vec<Type>, 
             }
         }
         _ => {
-            let t = infer(term, env, psi, warnings, 0, &mut Vec::new());
-            if !t.subtype(against) {
+            let t = infer(term, env, psi, &mut vec![], 0, &mut Vec::new());
+            if !t.subtype(against) && !Type::Dynamic.subtype(&t) {
                 warnings.push(Warning(
                     term.pos().clone(),
                     format!(
-                        "Expected `{}`, but found `{}`", against.clone().pretty(), t.pretty())));
-                    }
+                        "Expected `{}`, but found `{}`",
+                        against.clone().pretty(),
+                        t.pretty()
+                    ),
+                ));
+            }
         }
     }
 }
