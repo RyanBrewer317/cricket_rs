@@ -133,7 +133,7 @@ fn go() -> Result<Term, Error> {
                 println!("Warning: {} at `{}:{}:{}`.", msg, pos.src_name, pos.line, pos.col);
             }
             if !warnings.is_empty() {
-                println!("Hit `Enter` or `Return` to continue...");
+                println!("Hit `Enter` or `Return` to run anyway, or `Ctrl-C` to exit...");
                 io::stdin().read_line(&mut String::new()).unwrap();
             }
             return normalize(entry);
@@ -154,7 +154,7 @@ fn go() -> Result<Term, Error> {
                 println!("Warning: {} at `{}:{}:{}`.", msg, pos.src_name, pos.line, pos.col);
             }
             if !warnings.is_empty() {
-                println!("Hit `Enter` or `Return` to continue, or `Ctrl-C` to exit...");
+                println!("Hit `Enter` or `Return` to run anyway, or `Ctrl-C` to exit...");
                 io::stdin().read_line(&mut String::new()).unwrap();
             }
             return normalize(entry);
