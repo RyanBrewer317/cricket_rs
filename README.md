@@ -154,8 +154,10 @@ def main:
 
 ### Todo
 - I'd love real (equirecursive) self types without compromising the linear time complexity of the linter.
+- low-hanging fruit optimizations, like representing method names as integers instead of doing runtime string comparisons.
 - explicit type annotations? If adding all that syntax isn't too much more code. In theory object subsumption is already supported but has no use until type annotations can be added.
 - runtime type switching: do one thing if something is one type, and another thing if it's another type.
 - a much better standard library, especially for booleans and hashmaps.
 - conversions between numeric types and strings.
 - a license, now that this repo is more featured than the original.
+- an IDE plugin; the linter is begging for this.
