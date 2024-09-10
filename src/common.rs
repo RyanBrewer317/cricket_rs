@@ -14,7 +14,7 @@ pub enum Error {
     Runtime(Pos, String),
 }
 impl Pretty for Error {
-    fn pretty(self: Self) -> String {
+    fn pretty(self: &Self) -> String {
         match self {
             Error::Parse(pos, expected, msg) => {
                 let mut s = format!(
@@ -27,7 +27,7 @@ impl Pretty for Error {
                 s
             }
             Error::ParseRecoverable(pos, expected, msg) => {
-                Error::Parse(pos, expected, msg).pretty()
+                Error::Parse(pos.clone(), expected.clone(), msg.to_string()).pretty()
             }
             Error::Runtime(pos, msg) => {
                 format!(
@@ -40,7 +40,7 @@ impl Pretty for Error {
 }
 
 pub trait Pretty {
-    fn pretty(self: Self) -> String;
+    fn pretty(self: &Self) -> String;
 }
 
 #[derive(Clone, Debug)]
@@ -77,10 +77,10 @@ impl Syntax {
     }
 }
 impl Pretty for Syntax {
-    fn pretty(self: Self) -> String {
+    fn pretty(self: &Self) -> String {
         match self {
-            Syntax::Lambda(_, ident, body) => ident + "-> " + &body.pretty(),
-            Syntax::Ident(_, ident) => ident,
+            Syntax::Lambda(_, ident, body) => ident.to_string() + "-> " + &body.pretty(),
+            Syntax::Ident(_, ident) => ident.to_string(),
             Syntax::Call(_, foo, bar) => {
                 "(".to_owned() + &foo.pretty() + ")(" + &bar.pretty() + ")"
             }
@@ -88,12 +88,14 @@ impl Pretty for Syntax {
             Syntax::LetForce(_, ident, val, scope) => {
                 "let force ".to_owned() + &ident + " = " + &val.pretty() + " in " + &scope.pretty()
             }
-            Syntax::Object(_, Some(name), _) => name,
+            Syntax::Object(_, Some(name), _) => name.to_string(),
             Syntax::Object(_, None, methods) => {
                 "{".to_owned()
                     + &methods
                         .into_iter()
-                        .map(|(this, method, def)| this + "." + &method + ": " + &def.pretty())
+                        .map(|(this, method, def)| {
+                            this.to_string() + "." + &method + ": " + &def.pretty()
+                        })
                         .collect::<Vec<String>>()
                         .join(", ")
                     + "}"
@@ -115,7 +117,7 @@ impl Pretty for Syntax {
             }
             Syntax::String(_, s) => "\"".to_owned() + &s + "\"",
             Syntax::Float(_, f) => format!("{}", f),
-            Syntax::Module(_, name, _) => name,
+            Syntax::Module(_, name, _) => name.to_string(),
         }
     }
 }
@@ -135,40 +137,24 @@ pub enum Term {
     Float(Pos, f64),
     InEnv(Box<Term>, Env),
 }
-impl Term {
-    pub fn pos(&self) -> &Pos {
-        match self {
-            Term::Lambda(pos, _, _) => pos,
-            Term::Ident(pos, _, _) => pos,
-            Term::Call(pos, _, _) => pos,
-            Term::Int(pos, _) => pos,
-            Term::LetForce(pos, _, _, _) => pos,
-            Term::Object(pos, _, _) => pos,
-            Term::Access(pos, _, _) => pos,
-            Term::Update(pos, _, _, _, _) => pos,
-            Term::Operator(pos, _, _, _) => pos,
-            Term::String(pos, _) => pos,
-            Term::Float(pos, _) => pos,
-            Term::InEnv(x, _) => x.pos(),
-        }
-    }
-}
 impl Pretty for Term {
-    fn pretty(self: Self) -> String {
+    fn pretty(self: &Self) -> String {
         match self {
-            Term::Lambda(_, ident, body) => ident + "-> " + &body.pretty(),
+            Term::Lambda(_, ident, body) => ident.to_string() + "-> " + &body.pretty(),
             Term::Ident(_, i, ident) => format!("{}{}", ident, i),
             Term::Call(_, foo, bar) => "(".to_owned() + &foo.pretty() + ")(" + &bar.pretty() + ")",
             Term::Int(_, i) => format!("{}", i),
             Term::LetForce(_, ident, val, scope) => {
                 "let force ".to_owned() + &ident + " = " + &val.pretty() + " in " + &scope.pretty()
             }
-            Term::Object(_, Some(name), _methods) => name,
+            Term::Object(_, Some(name), _methods) => name.to_string(),
             Term::Object(_, None, methods) => {
                 "{".to_owned()
                     + &methods
                         .into_iter()
-                        .map(|(method, (this, def))| this + "." + &method + ": " + &def.pretty())
+                        .map(|(method, (this, def))| {
+                            this.to_string() + "." + &method + ": " + &def.pretty()
+                        })
                         .collect::<Vec<String>>()
                         .join(", ")
                     + "}"

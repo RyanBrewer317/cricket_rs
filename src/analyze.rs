@@ -8,8 +8,8 @@ pub enum Type {
     String,
     Dynamic,
     Object(Vec<(i64, String, Type)>),
-    This(i64),
     Union(Vec<Type>),
+    Effectful(Box<Type>),
 }
 impl Type {
     fn subtype(&self, other: &Type) -> bool {
@@ -28,9 +28,10 @@ impl Type {
                         .any(|(_, name2, ty2)| name == name2 && ty.subtype(ty2))
                 })
             }
-            (Type::This(i), Type::This(i2)) => i == i2,
             (Type::Union(ts), t) => ts.iter().all(|t2| t2.subtype(t)),
             (t, Type::Union(ts)) => ts.iter().any(|t2| t.subtype(t2)),
+            (Type::Effectful(t1), t2) => t1.subtype(t2),
+            (t1, Type::Effectful(t2)) => t1.subtype(t2),
             _ => false,
         }
     }
@@ -40,7 +41,7 @@ impl Type {
 }
 
 impl Pretty for Type {
-    fn pretty(self: Self) -> String {
+    fn pretty(self: &Self) -> String {
         match self {
             Type::Function(arg, ret) => "(".to_owned() + &arg.pretty() + ") -> " + &ret.pretty(),
             Type::Int => "Int".to_owned(),
@@ -56,12 +57,12 @@ impl Pretty for Type {
                         .join(", ")
                     + "}"
             }
-            Type::This(i) => format!("This{}", i),
             Type::Union(types) => types
                 .iter()
                 .map(|ty| ty.clone().pretty())
                 .collect::<Vec<String>>()
                 .join(" | "),
+            Type::Effectful(t) => "!(".to_owned() + &t.pretty() + ")",
         }
     }
 }
@@ -88,9 +89,9 @@ pub fn infer(
         Term::Ident(p, i, name) => match name.as_str() {
             "#console_write" => Type::Function(
                 Box::new(Type::Union(vec![Type::Int, Type::Float, Type::String])),
-                Box::new(Type::Int),
+                Box::new(Type::Effectful(Box::new(Type::Int))),
             ),
-            "#console_read" => Type::String,
+            "#console_read" => Type::Effectful(Box::new(Type::String)),
             _ => match env.get(env.len() - *i as usize - 1) {
                 // Some(Type::This(_i)) => Type::Dynamic, // TODO: implement Abadi-Cardelli IOC Self Types! We need a recursive-type unroll here, using `parent_objects`
                 Some(t) => t.clone(),
@@ -104,12 +105,19 @@ pub fn infer(
         },
         Term::Call(p, foo, bar) => {
             let bar2 = infer(bar, env, psi, warnings, i, parent_objects);
+            if let Type::Effectful(_) = &bar2 {
+                // TODO: check that this is necessary
+                warnings.push(Warning(
+                    p.clone(),
+                    format!("Consider moving this side-effectful value into a `let force`"),
+                ));
+            }
             psi.push(bar2);
             let foo2 = infer(foo, env, psi, warnings, i, parent_objects);
             psi.pop();
             match foo2 {
-                Type::Function(a, b) => {
-                    check(&bar, &a, env, psi, warnings); // TODO: check that this is necessary
+                Type::Function(_a, b) => {
+                    // check(&bar, &a, env, psi, warnings); // TODO: check that this is necessary
                     *b
                 }
                 Type::Dynamic => Type::Dynamic,
@@ -124,11 +132,19 @@ pub fn infer(
         }
         Term::Int(_, _) => Type::Int,
         Term::LetForce(_p, _ident, val, scope) => {
-            let val2 = infer(val, env, psi, warnings, i, parent_objects);
-            env.push(val2);
-            let scope = infer(scope, env, psi, warnings, i, parent_objects);
+            let val_type = infer(val, env, psi, warnings, i, parent_objects);
+            let (val_type2, effectful) = match val_type {
+                Type::Effectful(t) => (*t, true),
+                t => (t, false),
+            };
+            env.push(val_type2);
+            let scope_type = infer(scope, env, psi, warnings, i, parent_objects);
             env.pop();
-            scope
+            if effectful {
+                Type::Effectful(Box::new(scope_type))
+            } else {
+                scope_type
+            }
         }
         Term::Object(_p, _mb_name, methods) => {
             let mut methods2 = vec![];
@@ -291,33 +307,33 @@ pub fn infer(
     }
 }
 
-fn check(
-    term: &Term,
-    against: &Type,
-    env: &mut Vec<Type>,
-    psi: &mut Vec<Type>,
-    warnings: &mut Vec<Warning>,
-) -> () {
-    match term {
-        Term::Lambda(_, _, body) => {
-            if let Type::Function(a, b) = against {
-                env.push(*a.clone());
-                check(body, b, env, psi, warnings);
-                env.pop();
-            }
-        }
-        _ => {
-            let t = infer(term, env, psi, &mut vec![], 0, &mut Vec::new());
-            if !t.subtype(against) && !Type::Dynamic.subtype(&t) {
-                warnings.push(Warning(
-                    term.pos().clone(),
-                    format!(
-                        "Expected `{}`, but found `{}`",
-                        against.clone().pretty(),
-                        t.pretty()
-                    ),
-                ));
-            }
-        }
-    }
-}
+// fn check(
+//     term: &Term,
+//     against: &Type,
+//     env: &mut Vec<Type>,
+//     psi: &mut Vec<Type>,
+//     warnings: &mut Vec<Warning>,
+// ) -> () {
+//     match term {
+//         Term::Lambda(_, _, body) => {
+//             if let Type::Function(a, b) = against {
+//                 env.push(*a.clone());
+//                 check(body, b, env, psi, warnings);
+//                 env.pop();
+//             }
+//         }
+//         _ => {
+//             let t = infer(term, env, psi, &mut vec![], 0, &mut Vec::new());
+//             if !t.subtype(against) && !Type::Dynamic.subtype(&t) {
+//                 warnings.push(Warning(
+//                     term.pos().clone(),
+//                     format!(
+//                         "Expected `{}`, but found `{}`",
+//                         against.clone().pretty(),
+//                         t.pretty()
+//                     ),
+//                 ));
+//             }
+//         }
+//     }
+// }

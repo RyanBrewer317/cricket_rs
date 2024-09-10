@@ -52,6 +52,8 @@ Hit `Enter` or `Return` to run anyway, or `Ctrl-C` to exit...
 ```
 I choose this example to show off the fact that Cricket uses "application mode bidirectional type checking," (which isn't really bidirectional), based on the "Let Arguments Go First" paper by Xie and Oliviera. Cricket desugars let-bindings into immediately-applied lambdas, so the application mode is very helpful.
 
+Cricket also has a simple notion of effect type: if computing a value would cause some I/O side effects, then the linter will keep track of that, and suggest `let force`-ing it into a pure value before giving it as the argument to any function. This is helpful for if you ever forget about Cricket's laziness; `let force`-ing the side effects away ensures predictable program behavior.
+
 Cricket is *object-oriented,* which means that it uses objects for most of the computation. It uses an immutable variant of typical (so to speak) prototypical OOP. In other words, instead of classes, there's a way to extend objects:
 ```
 def main:
@@ -156,7 +158,7 @@ def main:
 - I'd love real (equirecursive) self types without compromising the linear time complexity of the linter.
 - low-hanging fruit optimizations, like representing method names as integers instead of doing runtime string comparisons.
 - explicit type annotations? If adding all that syntax isn't too much more code. In theory object subsumption is already supported but has no use until type annotations can be added.
-- runtime type switching: do one thing if something is one type, and another thing if it's another type.
+- runtime type switching: do one thing if something is one type, and another thing if it's another type. I might skip this in favor of categorical purity lol.
 - a much better standard library, especially for booleans and hashmaps.
 - conversions between numeric types and strings.
 - a license, now that this repo is more featured than the original.
