@@ -137,6 +137,24 @@ pub enum Term {
     Float(Pos, f64),
     InEnv(Box<Term>, Env),
 }
+impl Term {
+    pub fn pos(&self) -> &Pos {
+        match self {
+            Term::Lambda(pos, _, _) => pos,
+            Term::Ident(pos, _, _) => pos,
+            Term::Call(pos, _, _) => pos,
+            Term::Int(pos, _) => pos,
+            Term::LetForce(pos, _, _, _) => pos,
+            Term::Object(pos, _, _) => pos,
+            Term::Access(pos, _, _) => pos,
+            Term::Update(pos, _, _, _, _) => pos,
+            Term::Operator(pos, _, _, _) => pos,
+            Term::String(pos, _) => pos,
+            Term::Float(pos, _) => pos,
+            Term::InEnv(t, _) => t.pos(),
+        }
+    }
+}
 impl Pretty for Term {
     fn pretty(self: &Self) -> String {
         match self {

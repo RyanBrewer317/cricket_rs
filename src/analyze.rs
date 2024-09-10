@@ -38,6 +38,12 @@ impl Type {
     fn equiv(&self, other: &Type) -> bool {
         self.subtype(other) && other.subtype(self)
     }
+    fn effectful(self: &Self) -> bool {
+        match self {
+            Type::Effectful(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Pretty for Type {
@@ -106,7 +112,6 @@ pub fn infer(
         Term::Call(p, foo, bar) => {
             let bar2 = infer(bar, env, psi, warnings, i, parent_objects);
             if let Type::Effectful(_) = &bar2 {
-                // TODO: check that this is necessary
                 warnings.push(Warning(
                     p.clone(),
                     format!("Consider moving this side-effectful value into a `let force`"),
@@ -116,8 +121,8 @@ pub fn infer(
             let foo2 = infer(foo, env, psi, warnings, i, parent_objects);
             psi.pop();
             match foo2 {
-                Type::Function(_a, b) => {
-                    // check(&bar, &a, env, psi, warnings); // TODO: check that this is necessary
+                Type::Function(a, b) => {
+                    check(&bar, &a, env, psi, warnings); // TODO: check that this is necessary
                     *b
                 }
                 Type::Dynamic => Type::Dynamic,
@@ -140,7 +145,7 @@ pub fn infer(
             env.push(val_type2);
             let scope_type = infer(scope, env, psi, warnings, i, parent_objects);
             env.pop();
-            if effectful {
+            if effectful && !scope_type.effectful() {
                 Type::Effectful(Box::new(scope_type))
             } else {
                 scope_type
@@ -307,33 +312,33 @@ pub fn infer(
     }
 }
 
-// fn check(
-//     term: &Term,
-//     against: &Type,
-//     env: &mut Vec<Type>,
-//     psi: &mut Vec<Type>,
-//     warnings: &mut Vec<Warning>,
-// ) -> () {
-//     match term {
-//         Term::Lambda(_, _, body) => {
-//             if let Type::Function(a, b) = against {
-//                 env.push(*a.clone());
-//                 check(body, b, env, psi, warnings);
-//                 env.pop();
-//             }
-//         }
-//         _ => {
-//             let t = infer(term, env, psi, &mut vec![], 0, &mut Vec::new());
-//             if !t.subtype(against) && !Type::Dynamic.subtype(&t) {
-//                 warnings.push(Warning(
-//                     term.pos().clone(),
-//                     format!(
-//                         "Expected `{}`, but found `{}`",
-//                         against.clone().pretty(),
-//                         t.pretty()
-//                     ),
-//                 ));
-//             }
-//         }
-//     }
-// }
+fn check(
+    term: &Term,
+    against: &Type,
+    env: &mut Vec<Type>,
+    psi: &mut Vec<Type>,
+    warnings: &mut Vec<Warning>,
+) -> () {
+    match term {
+        Term::Lambda(_, _, body) => {
+            if let Type::Function(a, b) = against {
+                env.push(*a.clone());
+                check(body, b, env, psi, warnings);
+                env.pop();
+            }
+        }
+        _ => {
+            let t = infer(term, env, psi, &mut vec![], 0, &mut Vec::new());
+            if !t.subtype(against) && !Type::Dynamic.subtype(&t) {
+                warnings.push(Warning(
+                    term.pos().clone(),
+                    format!(
+                        "Expected `{}`, but found `{}`",
+                        against.clone().pretty(),
+                        t.pretty()
+                    ),
+                ));
+            }
+        }
+    }
+}
