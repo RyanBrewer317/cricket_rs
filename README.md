@@ -1,6 +1,6 @@
 # Cricket
 
-A functional and object-oriented programming language written in Rust. This is a port of the [cricket](https://github.com/RyanBrewer317/cricket) project, which was written in Haskell, some in some places the code might not be very idiomatic Rust. I write more typical Rust code in [SaberVM](https://github.com/RyanBrewer317/SaberVM). However, note that this implementation has additional features over the Haskell original, and of course runs faster.
+A functional and object-oriented programming language written in Rust. This is a port of the [cricket](https://github.com/RyanBrewer317/cricket) project, which was written in Haskell, so in some places the code might not be very idiomatic Rust. I write more typical Rust code in [SaberVM](https://github.com/RyanBrewer317/SaberVM). However, note that this implementation has additional features over the Haskell original, and of course runs faster.
 
 Some basic documentation can be found [here](https://github.com/RyanBrewer317/cricket/blob/main/docs/intro.md). In addition I will explain it further here, and note that all the code examples work right now! You can run them like so:
 ```
